@@ -27,8 +27,10 @@ import android.widget.Toast;
 import java.util.ArrayList;
 import java.util.List;
 
+import kr.hs.gshs.blebeaconprotocollibrary.PacketData;
 import kr.hs.gshs.blebeaconprotocollibrary.PacketTypeFilter;
 import kr.hs.gshs.blebeaconprotocollibrary.PacketTypes;
+import kr.hs.gshs.blebeaconprotocollibrary.ScanResultParser;
 
 /**
  * Scans for Bluetooth Low Energy Advertisements matching a filter and displays them to the user.
@@ -50,7 +52,7 @@ public class MainActivity extends AppCompatActivity {
     private ConstraintLayout viewFilterSettings;
     private ListView listViewFilterSettings;
 
-    private PacketTypeFilter packetTypeFilter;
+    public PacketTypeFilter mPacketTypeFilter;
 
     /**
      * Stops scanning after 5 seconds.
@@ -63,7 +65,7 @@ public class MainActivity extends AppCompatActivity {
 
     private ScanCallback mScanCallback;
 
-    private ScanResultAdapter adapterScanResult;
+    private ScanResultAdapter scanResultAdapter;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -78,7 +80,7 @@ public class MainActivity extends AppCompatActivity {
 
         mBluetoothLeScanner = mBluetoothAdapter.getBluetoothLeScanner();
 
-        packetTypeFilter = new PacketTypeFilter();
+        mPacketTypeFilter = new PacketTypeFilter();
 
         setupViewScanResults();
 
@@ -118,9 +120,6 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
                 if (isChecked) {
-                    adapterScanResult.clear();
-                    adapterScanResult.notifyDataSetChanged();
-
                     startScanning();
                 } else {
                     stopScanning();
@@ -129,8 +128,8 @@ public class MainActivity extends AppCompatActivity {
         });
 
         listViewScanResults = (ListView) findViewById(R.id.listViewScanResults);
-        adapterScanResult = new ScanResultAdapter(getApplicationContext(), getLayoutInflater());
-        listViewScanResults.setAdapter(adapterScanResult);
+        scanResultAdapter = new ScanResultAdapter(getApplicationContext(), getLayoutInflater(), mPacketTypeFilter);
+        listViewScanResults.setAdapter(scanResultAdapter);
     }
 
     private void setupViewFilterSettings() {
@@ -142,7 +141,7 @@ public class MainActivity extends AppCompatActivity {
             packetTypeNames[i] = packetTypes[i].displayName();
 
         listViewFilterSettings = (ListView) findViewById(R.id.listViewFilterSettings);
-        ArrayAdapter<String> adapterFilterSettings = new ArrayAdapter<String>(this, android.R.layout.simple_list_item_multiple_choice, packetTypeNames);
+        ArrayAdapter<String> adapterFilterSettings = new ArrayAdapter<>(this, android.R.layout.simple_list_item_multiple_choice, packetTypeNames);
         listViewFilterSettings.setAdapter(adapterFilterSettings);
     }
 
@@ -194,7 +193,9 @@ public class MainActivity extends AppCompatActivity {
                     SparseBooleanArray filter = listViewFilterSettings.getCheckedItemPositions();
                     for(int i=0; i<filter.size(); ++i) {
                         if (filter.get(i)) {
-                            packetTypeFilter.block(PacketTypes.fromOrdinal(i));
+                            mPacketTypeFilter.block(PacketTypes.fromOrdinal(i));
+                        } else {
+                            mPacketTypeFilter.unblock(PacketTypes.fromOrdinal(i));
                         }
                     }
 
@@ -218,6 +219,8 @@ public class MainActivity extends AppCompatActivity {
             // Kick off a new scan.
             mScanCallback = new SampleScanCallback();
             mBluetoothLeScanner.startScan(buildScanFilters(), buildScanSettings(), mScanCallback);
+
+            scanResultAdapter.notifyDataSetChanged();
         } else {
             Toast.makeText(this, "Scanning already started.", Toast.LENGTH_SHORT);
         }
@@ -235,7 +238,7 @@ public class MainActivity extends AppCompatActivity {
             mScanCallback = null;
 
             // Even if no new results, update 'last seen' times.
-            adapterScanResult.notifyDataSetChanged();
+            scanResultAdapter.notifyDataSetChanged();
         } else {
             Toast.makeText(this, "Scanning already stopped.", Toast.LENGTH_LONG);
         }
@@ -272,17 +275,19 @@ public class MainActivity extends AppCompatActivity {
             super.onBatchScanResults(results);
 
             for (ScanResult result : results) {
-                adapterScanResult.add(result);
+                PacketData packet = ScanResultParser.parse(result);
+                scanResultAdapter.add(packet, result.getTimestampNanos());
             }
-            adapterScanResult.notifyDataSetChanged();
+            scanResultAdapter.notifyDataSetChanged();
         }
 
         @Override
         public void onScanResult(int callbackType, ScanResult result) {
             super.onScanResult(callbackType, result);
 
-            adapterScanResult.add(result);
-            adapterScanResult.notifyDataSetChanged();
+            PacketData packet = ScanResultParser.parse(result);
+            scanResultAdapter.add(packet, result.getTimestampNanos());
+            scanResultAdapter.notifyDataSetChanged();
         }
 
         @Override
