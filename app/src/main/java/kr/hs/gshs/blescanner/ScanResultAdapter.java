@@ -132,16 +132,27 @@ public class ScanResultAdapter extends BaseAdapter {
             // Add new Device's ScanResult to list.
             mArrayList.add(packet);
             timestamps.add(timestamp);
-            notification();
+            notification(packet);
         }
     }
 
-    private void notification() {
+    private void notification(PacketData packet) {
+        if(!packet.isSupportedPacket() || mPacketTypeFilter.isBlocked(packet.getPacketType()))
+            return;
+
+        ArrayList<Struct> structs = packet.getStructs();
+        String notificationText = "";
+        for (Struct s : structs) {
+            notificationText += ", " + s.getData();
+        }
+        if (notificationText.length() >= 2)
+            notificationText = notificationText.substring(2);
+
         NotificationCompat.Builder mBuilder =
                 new NotificationCompat.Builder(mContext)
                         .setSmallIcon(R.mipmap.ic_launcher)
-                        .setContentTitle("My notification")
-                        .setContentText("Hello World!")
+                        .setContentTitle(packet.getPacketType().displayName())
+                        .setContentText(notificationText)
                         .setPriority(NotificationCompat.PRIORITY_HIGH)
                         .setDefaults(Notification.DEFAULT_ALL);
         // Creates an explicit intent for an Activity in your app

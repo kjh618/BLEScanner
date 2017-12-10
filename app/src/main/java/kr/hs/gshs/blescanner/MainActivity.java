@@ -54,11 +54,6 @@ public class MainActivity extends AppCompatActivity {
 
     public PacketTypeFilter mPacketTypeFilter;
 
-    /**
-     * Stops scanning after 5 seconds.
-     */
-    private static final long SCAN_PERIOD = 10000;
-
     private BluetoothAdapter mBluetoothAdapter;
 
     private BluetoothLeScanner mBluetoothLeScanner;
@@ -187,8 +182,7 @@ public class MainActivity extends AppCompatActivity {
                     setTitle("Scan Results");
                     item.setTitle("Filter");
 
-                    viewFilterSettings.setVisibility(View.INVISIBLE);
-                    viewScanResults.setVisibility(View.VISIBLE);
+                    scanResultAdapter.clear();
 
                     SparseBooleanArray filter = listViewFilterSettings.getCheckedItemPositions();
                     for(int i=0; i<filter.size(); ++i) {
@@ -198,6 +192,9 @@ public class MainActivity extends AppCompatActivity {
                             mPacketTypeFilter.unblock(PacketTypes.fromOrdinal(i));
                         }
                     }
+
+                    viewFilterSettings.setVisibility(View.INVISIBLE);
+                    viewScanResults.setVisibility(View.VISIBLE);
 
                     currentView = 0;
                 }
