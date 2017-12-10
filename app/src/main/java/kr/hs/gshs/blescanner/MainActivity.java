@@ -207,7 +207,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
-     * Start scanning for BLE Advertisements (& set it up to stop after a set period of time).
+     * Start scanning for BLE Advertisements.
      */
     public void startScanning() {
         if (mScanCallback == null) {
@@ -242,7 +242,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
-     * Return a List of {@link ScanFilter} objects to filter by Service UUID.
+     * Return a List of {@link ScanFilter} objects.
      */
     private List<ScanFilter> buildScanFilters() {
         List<ScanFilter> scanFilters = new ArrayList<>();

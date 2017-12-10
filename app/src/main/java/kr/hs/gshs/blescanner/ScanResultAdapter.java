@@ -104,7 +104,7 @@ public class ScanResultAdapter extends BaseAdapter {
     }
 
     /**
-     * Search the adapter for an existing device address and return it, otherwise return -1.
+     * Search the adapter for an existing packet and return it, otherwise return -1.
      */
     private int getPosition(PacketData packet) {
         int position = -1;
@@ -118,18 +118,18 @@ public class ScanResultAdapter extends BaseAdapter {
     }
 
     /**
-     * Add a ScanResult item to the adapter if a result from that device isn't already present.
-     * Otherwise updates the existing position with the new ScanResult.
+     * Add a packet item to the adapter if a packet isn't already present.
+     * Otherwise updates the existing position with the new packet.
      */
     public void add(PacketData packet, long timestamp) {
 
         int existingPosition = getPosition(packet);
 
         if (existingPosition >= 0) {
-            // Device is already in list, update its record.
+            // packet is already in list, update its timestamp.
             timestamps.set(existingPosition, timestamp);
         } else {
-            // Add new Device's ScanResult to list.
+            // Add new packet to list.
             mArrayList.add(packet);
             timestamps.add(timestamp);
             notification(packet);
@@ -175,7 +175,7 @@ public class ScanResultAdapter extends BaseAdapter {
         mBuilder.setContentIntent(resultPendingIntent);
         NotificationManager mNotificationManager =
                 (NotificationManager) mContext.getSystemService(Context.NOTIFICATION_SERVICE);
-        // mId allows you to update the notification later on.
+        // id allows you to update the notification later on.
         mNotificationManager.notify(0, mBuilder.build());
     }
 
