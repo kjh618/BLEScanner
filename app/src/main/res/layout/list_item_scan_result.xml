@@ -58,7 +58,7 @@
     </LinearLayout>
 
     <ListView
-        android:id="@+id/listViewStruct"
+        android:id="@+id/listViewStructs"
         android:layout_width="match_parent"
         android:layout_height="100dp" />
 </LinearLayout>

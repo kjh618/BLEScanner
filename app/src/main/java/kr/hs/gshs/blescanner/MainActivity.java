@@ -9,10 +9,16 @@ import android.bluetooth.le.ScanResult;
 import android.bluetooth.le.ScanSettings;
 import android.content.Context;
 import android.content.Intent;
-import android.os.Handler;
+import android.support.constraint.ConstraintLayout;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
+import android.util.SparseBooleanArray;
+import android.view.Menu;
+import android.view.MenuInflater;
+import android.view.MenuItem;
+import android.view.View;
+import android.widget.ArrayAdapter;
 import android.widget.CompoundButton;
 import android.widget.ListView;
 import android.widget.Switch;
@@ -20,7 +26,9 @@ import android.widget.Toast;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
+
+import kr.hs.gshs.blebeaconprotocollibrary.PacketTypeFilter;
+import kr.hs.gshs.blebeaconprotocollibrary.PacketTypes;
 
 /**
  * Scans for Bluetooth Low Energy Advertisements matching a filter and displays them to the user.
@@ -31,8 +39,18 @@ public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = MainActivity.class.getSimpleName();
 
-    private Switch mSwitch;
-    private ListView listViewScanResult;
+    private int currentView;
+
+    // currentView == 0
+    private ConstraintLayout viewScanResults;
+    private Switch switchScan;
+    private ListView listViewScanResults;
+
+    // currentView == 1
+    private ConstraintLayout viewFilterSettings;
+    private ListView listViewFilterSettings;
+
+    private PacketTypeFilter packetTypeFilter;
 
     /**
      * Stops scanning after 5 seconds.
@@ -45,44 +63,64 @@ public class MainActivity extends AppCompatActivity {
 
     private ScanCallback mScanCallback;
 
-    private ScanResultAdapter mAdapter;
-
-    private Handler mHandler;
+    private ScanResultAdapter adapterScanResult;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        setTitle("Scan Results");
+        currentView = 0;
 
         if (savedInstanceState == null) {
-
-            mBluetoothAdapter = ((BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE)).getAdapter();
-
-            // Is Bluetooth supported on this device?
-            if (mBluetoothAdapter != null) {
-
-                // Is Bluetooth turned on?
-                if (!mBluetoothAdapter.isEnabled()) {
-
-                    // Prompt user to turn on Bluetooth (logic continues in onActivityResult()).
-                    Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
-                    startActivityForResult(enableBtIntent, REQUEST_ENABLE_BT);
-                }
-            } else {
-
-                // Bluetooth is not supported.
-                Toast.makeText(this, "Bluetooth is not supported on this device.", Toast.LENGTH_LONG).show();
-                finish();
-            }
+            checkBluetooth();
         }
 
         mBluetoothLeScanner = mBluetoothAdapter.getBluetoothLeScanner();
 
-        mSwitch = (Switch) findViewById(R.id.switchScan);
-        mSwitch.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+        packetTypeFilter = new PacketTypeFilter();
+
+        setupViewScanResults();
+
+        setupViewFilterSettings();
+
+        // Trigger refresh on app's 1st load
+        startScanning();
+        switchScan.setChecked(true);
+    }
+
+    private void checkBluetooth() {
+        mBluetoothAdapter = ((BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE)).getAdapter();
+
+        // Is Bluetooth supported on this device?
+        if (mBluetoothAdapter != null) {
+
+            // Is Bluetooth turned on?
+            if (!mBluetoothAdapter.isEnabled()) {
+
+                // Prompt user to turn on Bluetooth (logic continues in onActivityResult()).
+                Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
+                startActivityForResult(enableBtIntent, REQUEST_ENABLE_BT);
+            }
+        } else {
+
+            // Bluetooth is not supported.
+            Toast.makeText(this, "Bluetooth is not supported on this device.", Toast.LENGTH_LONG).show();
+            finish();
+        }
+    }
+
+    private void setupViewScanResults() {
+        viewScanResults = (ConstraintLayout) findViewById(R.id.viewScanResults);
+
+        switchScan = (Switch) findViewById(R.id.switchScan);
+        switchScan.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
             @Override
             public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
                 if (isChecked) {
+                    adapterScanResult.clear();
+                    adapterScanResult.notifyDataSetChanged();
+
                     startScanning();
                 } else {
                     stopScanning();
@@ -90,16 +128,25 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        listViewScanResult = (ListView) findViewById(R.id.listViewScanResult);
-        mAdapter = new ScanResultAdapter(getApplicationContext(), getLayoutInflater());
-        listViewScanResult.setAdapter(mAdapter);
-        mHandler = new Handler();
-
-        // Trigger refresh on app's 1st load
-        startScanning();
-        mSwitch.setChecked(true);
+        listViewScanResults = (ListView) findViewById(R.id.listViewScanResults);
+        adapterScanResult = new ScanResultAdapter(getApplicationContext(), getLayoutInflater());
+        listViewScanResults.setAdapter(adapterScanResult);
     }
 
+    private void setupViewFilterSettings() {
+        viewFilterSettings = (ConstraintLayout) findViewById(R.id.viewFilterSettings);
+
+        PacketTypes[] packetTypes = PacketTypes.getValues();
+        String[] packetTypeNames = new String[packetTypes.length];
+        for (int i=0; i<packetTypes.length; ++i)
+            packetTypeNames[i] = packetTypes[i].displayName();
+
+        listViewFilterSettings = (ListView) findViewById(R.id.listViewFilterSettings);
+        ArrayAdapter<String> adapterFilterSettings = new ArrayAdapter<String>(this, android.R.layout.simple_list_item_multiple_choice, packetTypeNames);
+        listViewFilterSettings.setAdapter(adapterFilterSettings);
+    }
+
+    // continued from checkBluetooth()
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
@@ -118,6 +165,49 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        MenuInflater inflater = getMenuInflater();
+        inflater.inflate(R.menu.menu_main, menu);
+        return true;
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        switch (item.getItemId()) {
+            case R.id.menuItem:
+                if (currentView == 0) {
+                    setTitle("Filter Settings");
+                    item.setTitle("Save");
+
+                    viewScanResults.setVisibility(View.INVISIBLE);
+                    viewFilterSettings.setVisibility(View.VISIBLE);
+
+                    currentView = 1;
+                } else if (currentView == 1) {
+                    setTitle("Scan Results");
+                    item.setTitle("Filter");
+
+                    viewFilterSettings.setVisibility(View.INVISIBLE);
+                    viewScanResults.setVisibility(View.VISIBLE);
+
+                    SparseBooleanArray filter = listViewFilterSettings.getCheckedItemPositions();
+                    for(int i=0; i<filter.size(); ++i) {
+                        if (filter.get(i)) {
+                            packetTypeFilter.block(PacketTypes.fromOrdinal(i));
+                        }
+                    }
+
+                    currentView = 0;
+                }
+
+                return true;
+
+            default:
+                return super.onOptionsItemSelected(item);
+        }
+    }
+
     /**
      * Start scanning for BLE Advertisements (& set it up to stop after a set period of time).
      */
@@ -125,23 +215,9 @@ public class MainActivity extends AppCompatActivity {
         if (mScanCallback == null) {
             Log.d(TAG, "Starting Scanning");
 
-            // Will stop the scanning after a set time.
-            mHandler.postDelayed(new Runnable() {
-                @Override
-                public void run() {
-                    stopScanning();
-                    mSwitch.setChecked(false);
-                }
-            }, SCAN_PERIOD);
-
             // Kick off a new scan.
             mScanCallback = new SampleScanCallback();
             mBluetoothLeScanner.startScan(buildScanFilters(), buildScanSettings(), mScanCallback);
-
-            String toastText = "Scanning for "
-                    + TimeUnit.SECONDS.convert(SCAN_PERIOD, TimeUnit.MILLISECONDS)
-                    + " seconds.";
-            Toast.makeText(this, toastText, Toast.LENGTH_LONG).show();
         } else {
             Toast.makeText(this, "Scanning already started.", Toast.LENGTH_SHORT);
         }
@@ -159,7 +235,7 @@ public class MainActivity extends AppCompatActivity {
             mScanCallback = null;
 
             // Even if no new results, update 'last seen' times.
-            mAdapter.notifyDataSetChanged();
+            adapterScanResult.notifyDataSetChanged();
         } else {
             Toast.makeText(this, "Scanning already stopped.", Toast.LENGTH_LONG);
         }
@@ -196,17 +272,17 @@ public class MainActivity extends AppCompatActivity {
             super.onBatchScanResults(results);
 
             for (ScanResult result : results) {
-                mAdapter.add(result);
+                adapterScanResult.add(result);
             }
-            mAdapter.notifyDataSetChanged();
+            adapterScanResult.notifyDataSetChanged();
         }
 
         @Override
         public void onScanResult(int callbackType, ScanResult result) {
             super.onScanResult(callbackType, result);
 
-            mAdapter.add(result);
-            mAdapter.notifyDataSetChanged();
+            adapterScanResult.add(result);
+            adapterScanResult.notifyDataSetChanged();
         }
 
         @Override

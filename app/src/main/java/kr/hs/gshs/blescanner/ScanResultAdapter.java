@@ -7,10 +7,18 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.BaseAdapter;
+import android.widget.ListView;
 import android.widget.TextView;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
+
+import kr.hs.gshs.blebeaconprotocollibrary.PacketData;
+import kr.hs.gshs.blebeaconprotocollibrary.PacketTypes;
+import kr.hs.gshs.blebeaconprotocollibrary.ScanResultParser;
+import kr.hs.gshs.blebeaconprotocollibrary.Struct;
+import kr.hs.gshs.blebeaconprotocollibrary.StructTypes;
 
 /**
  * Holds and displays {@link ScanResult}s, used by {@link MainActivity}.
@@ -42,7 +50,7 @@ public class ScanResultAdapter extends BaseAdapter {
 
     @Override
     public long getItemId(int position) {
-        return mArrayList.get(position).getDevice().getAddress().hashCode();
+        return mArrayList.get(position).hashCode();
     }
 
     @Override
@@ -53,16 +61,28 @@ public class ScanResultAdapter extends BaseAdapter {
             view = mInflater.inflate(R.layout.list_item_scan_result, null);
         }
 
-        TextView textViewPacketType = (TextView) view.findViewById(R.id.textViewPacketType);
-        TextView textViewLastSeen = (TextView) view.findViewById(R.id.textViewLastSeen);
-
         ScanResult scanResult = mArrayList.get(position);
+        PacketData packet = ScanResultParser.parse(scanResult);
 
-        String name = scanResult.getDevice().getName();
-        if (name == null) {
-            name = "(no name)";
+        TextView textViewPacketType = (TextView) view.findViewById(R.id.textViewPacketType);
+
+        ListView listViewStructs = (ListView) view.findViewById(R.id.listViewStructs);
+        StructAdapter structAdapter = new StructAdapter(view.getContext(), LayoutInflater.from(view.getContext()));
+        listViewStructs.setAdapter(structAdapter);
+
+        if (!packet.isSupportedPacket()) {
+            textViewPacketType.setText("(Unsupported packet)");
+        } else {
+            PacketTypes packetType = packet.getPacketType();
+            textViewPacketType.setText(packetType.displayName());
+
+            ArrayList<Struct> structs = packet.getStructs();
+            for(Struct s : structs)
+                structAdapter.addItem(s);
+            structAdapter.notifyDataSetChanged();
         }
-        textViewPacketType.setText(name);
+
+        TextView textViewLastSeen = (TextView) view.findViewById(R.id.textViewLastSeen);
         textViewLastSeen.setText(getTimeSinceString(mContext, scanResult.getTimestampNanos()));
 
         return view;
@@ -71,10 +91,16 @@ public class ScanResultAdapter extends BaseAdapter {
     /**
      * Search the adapter for an existing device address and return it, otherwise return -1.
      */
-    private int getPosition(String address) {
+    private int getPosition(ScanResult scanResult) {
         int position = -1;
         for (int i = 0; i < mArrayList.size(); i++) {
-            if (mArrayList.get(i).getDevice().getAddress().equals(address)) {
+            byte[] existingRawBytes = new byte[26];
+            System.arraycopy(mArrayList.get(i).getScanRecord().getBytes(), 5, existingRawBytes, 0, 26);
+
+            byte[] newRawBytes = new byte[26];
+            System.arraycopy(scanResult.getScanRecord().getBytes(), 5, newRawBytes, 0, 26);
+
+            if (Arrays.equals(existingRawBytes, newRawBytes)) {
                 position = i;
                 break;
             }
@@ -88,7 +114,7 @@ public class ScanResultAdapter extends BaseAdapter {
      */
     public void add(ScanResult scanResult) {
 
-        int existingPosition = getPosition(scanResult.getDevice().getAddress());
+        int existingPosition = getPosition(scanResult);
 
         if (existingPosition >= 0) {
             // Device is already in list, update its record.
